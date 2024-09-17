@@ -49,6 +49,9 @@ fit.knn <- function(new_value, data, k = 3, target, regressor){
 }
 ```
 
+### Script R e arquivo RMD disponível em:
+https://github.com/paul0justinian0/Aprendizado_Supervisionado
+
 \newpage
 
 #### Cats
