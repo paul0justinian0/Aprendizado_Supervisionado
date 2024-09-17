@@ -1,0 +1,199 @@
+---
+title: "Desafio 1 - Aprendizado Supervisionado"
+author: "Paulo J. Ribeiro Neto"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(MASS)
+library(AER)
+
+data(cats)
+data("CASchools")
+
+set.seed(12345)
+```
+
+# Desafio:
+## Crie uma própria implementação do KNN e aplique a um conjunto de dados para regressão linear simples (RLS).
+
+### Bases de dados escolhidas:
+
+#### Cats, do pacote MASS:
+
+A base de dados \textit{Cats} contém informações sobre o peso corporal e o peso do coração de 144 gatos adultos, machos e fêmeas, com mais de 2 quilogramas de peso corporal.
+
+- Resposta: \textit{Hwt};
+- Explicativa: \textit{Bwt};
+
+#### CASchools do pacote AER:
+
+A base de dados \textit{CASchools} contém informações sobre a performance de estudantes da Califórnia em um teste de matemática. A base também traz dados demográficos e características destas escolas.
+
+- Resposta: \textit{math};
+- Explicativa: \textit{income};
+
+### Implementação do algoritmo KNN em R:
+
+```{r}
+fit.knn <- function(new_value, data, k = 3, target, regressor){
+    
+    dist <- data[, regressor] - new_value
+    neighbors <- data[order(abs(dist)),target][1:k]
+    knn_value <- mean(neighbors)
+    
+    return(knn_value)
+}
+```
+
+\newpage
+
+#### Cats
+
+##### Separação das bases de dados entre treino e teste
+
+Vamos definir as bases de treino e teste através de um sorteio aleatório. A base de treino terá 70% das observações da base de dados original e as demais serão nossa base de teste.
+
+```{r}
+indices_treino <- sample(1:nrow(cats), size = nrow(cats)*0.7)
+treino <- cats[indices_treino,]
+teste <- cats[-indices_treino,]
+```
+
+##### Obtendo as predições via KNN
+
+Para obter as predições, vamos utilizar a função \textit{sapply} do R.
+
+```{r}
+knn.values <- sapply(teste[, 2], function(i){
+    fit.knn(new_value = i, data = treino, target = "Hwt", regressor = "Bwt", k = 20)
+})
+```
+
+##### Ajuste da RLS e obtenção das predições
+
+Agora, vamos ajustar o modelo de regressão linear simples, utilizando a base de treino. Depois, utilizaremos a função \textit{predict} para obter os valores preditos da base teste.
+
+```{r, echo = FALSE}
+mod1 <- lm(Hwt ~ Bwt, data = treino)
+
+pred.RLS <- predict(mod1, teste)
+```
+
+##### Comparação do EQM:
+
+```{r, echo=FALSE}
+EQM.knn <- mean((knn.values - teste[,3])^2)
+EQM.RLS <- mean((pred.RLS - teste[,3])^2)
+```
+
+Podemos calcular o Erro Quadrático Médio das predições ao calcularmos a média do quadrado da diferença entre os valores preditos da variável resposta e os verdadeiros valores da variável.
+
+Realizando estes cálculos, obtemos um EQM para as predições da RLS de `r round(EQM.RLS, 4)`, e um EQM para as predições do KNN de `r round(EQM.knn, 4)`.
+
+Ao compararmos os Erros Quadráticos Médios das duas predições, podemos verificar que, para estes conjuntos de treino e teste, o método da Regressão Linear Simples é aquele que resulta no menor EQM, mas a diferença entre os métodos é relativamente pequena, sendo de apenas `r round(abs(EQM.RLS - EQM.knn),4)`.
+
+```{r, echo = FALSE, out.width="70%", fig.align='center'}
+indices_knn <- order(teste[,2])
+
+plot(Hwt ~ Bwt, data = cats, pch = 20, cex = 0.5)
+abline(a = mod1$coefficients[1], b = mod1$coefficients[2], col = "red")
+points(teste[,2], knn.values, col = "navy", pch = 18, cex = 1.5)
+lines(teste[indices_knn,2], knn.values[indices_knn])
+legend("topleft", legend = c("KNN", "Base real", "Reta de regressão"), pch = c(18, 20, 4), col = c("navy", "black", "red"))
+```
+
+Analisando o gráfico, podemos perceber que a diferença entre a reta de regressão e os valores do KNN é muito pequena. Além disso, ambos os métodos parecem se ajustar bem aos dados.
+
+#### CASchools
+
+##### Separação das bases de dados entre treino e teste
+
+Assim como fizemos para a base \textit{cats}, vamos definir as bases de treino e teste através de um sorteio aleatório. A base de treino terá 70% das observações da base de dados original e as demais serão nossa base de teste.
+
+```{r}
+indices_treino <- sample(1:nrow(CASchools), size = nrow(CASchools)*0.7)
+treino <- CASchools[indices_treino,]
+teste <- CASchools[-indices_treino,]
+```
+
+##### Obtendo as predições via KNN
+
+Para obter as predições, vamos utilizar a função \textit{sapply} do R.
+
+```{r}
+knn.values <- sapply(teste[, 11], function(i){
+    fit.knn(new_value = i, data = treino, target = 14, regressor = 11, k = 25)
+})
+```
+
+##### Ajuste da RLS e obtenção das predições
+
+Agora, vamos ajustar o modelo de regressão linear simples, utilizando a base de treino. Depois, utilizaremos a função \textit{predict} para obter os valores preditos da base teste.
+
+```{r, echo=FALSE}
+mod1 <- lm(math ~ income, data = treino)
+
+pred.RLS <- predict(mod1, teste)
+```
+
+##### Comparação do EQM:
+
+```{r, echo=FALSE}
+EQM.knn <- mean((knn.values - teste[,14])^2)
+EQM.RLS <- mean((pred.RLS - teste[,14])^2)
+```
+
+Podemos calcular o Erro Quadrático Médio das predições ao calcularmos a média do quadrado da diferença entre os valores preditos da variável resposta e os verdadeiros valores da variável.
+
+Realizando estes cálculos, obtemos um EQM para as predições da RLS de `r round(EQM.RLS, 4)`, e um EQM para as predições do KNN de `r round(EQM.knn, 4)`.
+
+Ao compararmos os Erros Quadráticos Médios das duas predições, podemos verificar que, para estes conjuntos de treino e teste, o método KNN é aquele que resulta no menor EQM, com uma diferença `r round(abs(EQM.RLS - EQM.knn),4)` entre os métodos.
+
+```{r, echo = FALSE, out.width="70%", fig.align='center'}
+indices_knn <- order(teste[,11])
+
+plot(math ~ income, data = CASchools, pch = 20, cex = 0.5)
+abline(a = mod1$coefficients[1], b = mod1$coefficients[2], col = "red")
+points(teste[,11], knn.values, col = "navy", pch = 18, cex = 1.5)
+lines(teste[indices_knn,11], knn.values[indices_knn])
+legend("bottomright", legend = c("KNN", "Base real", "Reta de regressão"), pch = c(18, 20, 4), col = c("navy", "black", "red"))
+```
+
+Analisando o gráfico, podemos perceber que há uma grande diferença entre os métodos. O ajuste da RLS, sem realizar qualquer transformação na variável resposta, não parece se ajustar bem aos dados, sendo que o KNN se ajusta melhor à relação não-linear entre a variável explicativa e a resposta.
+
+\newpage
+
+### Comparando gráficos com diferentes valores de K
+
+```{r, echo = FALSE, fig.align='center'}
+knn.values1 <- sapply(teste[, 11], function(i){
+    fit.knn(new_value = i, data = treino, target = 14, regressor = 11, k = 3)
+})
+indices_knn1 <- order(teste[,11])
+
+knn.values2 <- sapply(teste[, 11], function(i){
+    fit.knn(new_value = i, data = treino, target = 14, regressor = 11, k = 50)
+})
+indices_knn2 <- order(teste[,11])
+
+knn.values3 <- sapply(teste[, 11], function(i){
+    fit.knn(new_value = i, data = treino, target = 14, regressor = 11, k = 100)
+})
+indices_knn3 <- order(teste[,11])
+
+plot(math ~ income, data = CASchools, pch = 20, cex = 0.5)
+abline(a = mod1$coefficients[1], b = mod1$coefficients[2], col = "red")
+points(teste[,11], knn.values, col = "navy", pch = 18, cex = 1)
+lines(teste[indices_knn,11], knn.values[indices_knn], col = "navy")
+points(teste[,11], knn.values1, col = "darkgreen", pch = 17, cex = 1)
+lines(teste[indices_knn,11], knn.values1[indices_knn], col = "darkgreen")
+points(teste[,11], knn.values2, col = "steelblue", pch = 16, cex = 1)
+lines(teste[indices_knn,11], knn.values2[indices_knn], col = "steelblue")
+points(teste[,11], knn.values3, col = "orange", pch = 15, cex = 1)
+lines(teste[indices_knn,11], knn.values3[indices_knn], col = "orange")
+legend("bottomright", legend = c("K = 3", "K = 25", "K = 50", "K = 100"), pch = c(18, 17, 16, 15), col = c("darkgreen", "navy", "steelblue", "orange"))
+```
