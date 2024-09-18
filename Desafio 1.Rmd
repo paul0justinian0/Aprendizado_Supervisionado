@@ -200,3 +200,5 @@ points(teste[,11], knn.values3, col = "orange", pch = 15, cex = 1)
 lines(teste[indices_knn,11], knn.values3[indices_knn], col = "orange")
 legend("bottomright", legend = c("K = 3", "K = 25", "K = 50", "K = 100"), pch = c(18, 17, 16, 15), col = c("darkgreen", "navy", "steelblue", "orange"))
 ```
+
+Podemos verificar que valores muito pequenos de K resultam em um possível overfitting, Com os valroes preditos tendo uma variação muito grande. Já valores maiores de K resultam em ajustes mais suaves, porém ao aumentarmos demais o valor de K, acabamos subestimando os valores preditos.
