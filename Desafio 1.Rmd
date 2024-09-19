@@ -166,7 +166,7 @@ lines(teste[indices_knn,11], knn.values[indices_knn])
 legend("bottomright", legend = c("KNN", "Base real", "Reta de regressão"), pch = c(18, 20, 4), col = c("navy", "black", "red"))
 ```
 
-Analisando o gráfico, podemos perceber que há uma grande diferença entre os métodos. O ajuste da RLS, sem realizar qualquer transformação na variável resposta, não parece se ajustar bem aos dados, sendo que o KNN se ajusta melhor à relação não-linear entre a variável explicativa e a resposta.
+Analisando o gráfico, podemos perceber que há uma grande diferença entre os métodos. O ajuste da RLS, sem realizar qualquer transformação na variável \textit{income}, não parece se ajustar bem aos dados. O KNN se ajusta melhor à relação não-linear entre a variável explicativa e a resposta.
 
 \newpage
 
@@ -201,4 +201,4 @@ lines(teste[indices_knn,11], knn.values3[indices_knn], col = "orange")
 legend("bottomright", legend = c("K = 3", "K = 25", "K = 50", "K = 100"), pch = c(18, 17, 16, 15), col = c("darkgreen", "navy", "steelblue", "orange"))
 ```
 
-Podemos verificar que valores muito pequenos de K resultam em um possível overfitting, Com os valroes preditos tendo uma variação muito grande. Já valores maiores de K resultam em ajustes mais suaves, porém ao aumentarmos demais o valor de K, acabamos subestimando os valores preditos.
+Podemos verificar que valores muito pequenos de K resultam em um possível overfitting, Com os valores preditos tendo uma variação muito grande. Já valores maiores de K resultam em ajustes mais suaves, porém ao aumentarmos demais o valor de K, acabamos prejudicando a qualidade da predição para os dados nas bordas do conjunto de dados.
