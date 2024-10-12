@@ -1,0 +1,240 @@
+---
+title: "Desafio 2 - Aprendizado Supervisionado"
+author: "Paulo J. Ribeiro Neto"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(AER)
+
+data("CASchools")
+dados <- CASchools[, -c(1:9)]
+
+set.seed(123)
+```
+
+# Desafio:
+## Pesquise sobre Tunagem e Grid-Search, compare RLS, KNN com escolha do K por tunagem e Regressão Linear com regularização, escolha via tunagem
+
+### Bases de dados escolhidas:
+
+#### CASchools do pacote AER:
+
+A base de dados \textit{CASchools} contém informações sobre a performance de estudantes da Califórnia em um teste de matemática. A base também traz dados demográficos e características destas escolas.
+
+- Resposta: \textit{math};
+- Explicativas: \textit{expenditure, income, english, read};
+
+### Script R e arquivo RMD disponível em:
+https://github.com/paul0justinian0/Aprendizado_Supervisionado
+
+#### CASchools
+
+##### Separação das bases de dados entre treino e teste (holdout repetido)
+
+Vamos definir as bases de treino e teste através de um sorteio aleatório. A base de treino terá 70% das observações da base de dados original e as demais serão nossa base de teste. Vamos fazer 100 amostras desta maneira.
+
+```{r}
+amostras <- lapply(1:100, function(x){
+    idx <- sample(1:nrow(dados), 0.75*nrow(dados))
+    
+    return(list(treino = dados[idx,],
+                test = dados[-idx,]))
+})
+```
+
+\newpage
+
+### Resultados de Regressão Linear Múltipla:
+
+Vamos realizar ajustes de modelos de Regressão Linear Múltipla e verificar a média da raíz do erro quadrático médio das predições.
+
+```{r}
+lm_mods <- lapply(amostras, function(x){
+    lm(income ~ ., data =  x$treino)
+})
+
+lm_preds <- lapply(1:100, function(x){
+    predict(lm_mods[[x]], newdata = amostras[[x]]$test)
+})
+
+lm_RMSE <- sapply(1:100, function(x){
+    Metrics::rmse(lm_preds[[x]], amostras[[x]]$test$income)
+})
+
+mean(lm_RMSE)
+```
+
+### Resultados do ajuste via elastic net:
+
+```{r}
+library(glmnet)
+
+alpha <- seq(0, 1, length.out = 100)
+lambda <- seq(0, 10, length.out = 100)
+
+parametros <- expand.grid(alpha = alpha, lambda = lambda)
+
+idx <- sample(1:(100*100), size = 1000)
+
+parametros <- parametros[idx, ]
+
+elastic_net <- sapply(1:nrow(parametros), function(i){
+    metrics <- sapply(1:length(amostras), function(j){
+        X <- as.matrix(amostras[[j]]$treino[, -2])
+        Y <- amostras[[j]]$treino$income
+        
+        elastic_net_model <- glmnet(X, Y, alpha = parametros$alpha[i],
+                                    lambda = parametros$lamda[i])
+        elastic_net_pred <- predict(elastic_net_model,
+                                    as.matrix(amostras[[j]]$test[, -2]))
+        Metrics::rmse(elastic_net_pred, amostras[[j]]$test$income)
+    })
+    return(mean(metrics))
+})
+```
+
+\newpage
+
+Para o ajuste de elastic net, foi utilizada a técnica de tunagem via \textit{random search}. Os parâmetros ótimos encontrados foram:
+
+```{r}
+optimal_param <- parametros[which.min(elastic_net), ]
+optimal_param
+```
+
+Analisando os parâmetros ótimos, podemos concluir que o modelo sendo ajustado é uma Regressão LASSO com penalização de `r round(optimal_param[,2], 3)`.
+
+Vamos agora verificar a média da raiz quadrada do erro quadrático médio das predições realizadas com o modelo ajustado de acordo com estes parâmetros.
+
+```{r}
+elastic_net_models <- lapply(amostras, function(x){
+    X <- as.matrix(x$treino[, -2])
+    Y <- x$treino$income
+    
+    elastic_net_mod <- glmnet(X, Y,
+                              alpha = optimal_param$alpha,
+                              lambda = optimal_param$lamda)
+    return(elastic_net_mod)
+})
+
+elastic_net_preds <- lapply(1:100, function(x){
+    predict(elastic_net_models[[x]], newx = as.matrix(amostras[[x]]$test[, -2]))
+})
+
+elastic_net_rmse <- sapply(1:100, function(x){
+    Metrics::rmse(elastic_net_preds[[x]], amostras[[x]]$test$income)
+})
+
+mean(elastic_net_rmse)
+```
+
+\newpage
+
+### Resultados do ajuste via KNN:
+
+```{r}
+fit_knn_mult <- function(new_data, data, k, target){
+    
+    # Excluindo a coluna: variável resposta do dataset
+    data_covars <- as.matrix(data[, colnames(data) != target])
+    newdata_covars <- as.numeric(new_data[colnames(new_data) != target])
+    
+    # Calculando as distâncias euclidianas
+    dist <- apply(data_covars, 1, function(row){
+        sqrt(sum((row - newdata_covars) ^ 2))
+    })
+    
+    # Encontrando os k vizinhos mais próximos
+    neighbors <- order(dist)[1:k]
+    
+    # Cálculo da média do valor alvo para os k vizinhos mais próximos
+    return(mean(data[neighbors, target]))
+}
+
+knn_predict_target <- function(newdata, data, k , target){
+    apply(newdata, 1, function(row){
+        fit_knn_mult(new_data = as.data.frame(t(row)),
+                     data = data,
+                     k = k,
+                     target = target)
+    })
+}
+
+op_k_rmse <- sapply(1:30, function(k){
+    knn_rmse <- sapply(1:100, function(i){
+        knn_pred <- knn_predict_target(newdata = amostras[[i]]$test,
+                                       data = amostras[[i]]$treino,
+                                       k = k,
+                                       target = "income")
+        Metrics::rmse(knn_pred, amostras[[i]]$test$income)
+    })
+    return(mean(knn_rmse))
+})
+```
+
+```{r}
+optimal_k <- c(1:30)[which.min(op_k_rmse)]
+```
+
+O melhor valor de K que encontramos via tunagem foi `r optimal_k`.
+
+\newpage
+
+Vejamos o gráfico que compara os possíveis valores de K com seus respectivos REQM.
+
+```{r, echo = FALSE}
+data.frame(k = 1:30, rmse = op_k_rmse) %>% 
+    ggplot(aes(x = k, y = rmse))+
+    geom_line()+
+    geom_point()+
+    geom_point(aes(x = optimal_k, y = min(op_k_rmse)),
+               color = "red", size = 2)+
+    annotate("text",
+             x = optimal_k,
+             y = min(op_k_rmse),
+             label = paste("k = ", optimal_k),
+             vjust = -1.5)+
+    labs(title = "REQM vs. k",
+         x = "k",
+         y = "REQM")+
+    theme_bw()
+```
+
+Vamos agora verificar a média da raiz quadrada do erro quadrático médio das predições realizadas com este valor de K.
+
+```{r}
+knn_preds <- lapply(1:100, function(x){
+    knn_predict_target(newdata = amostras[[x]]$test,
+                       data = amostras[[x]]$treino,
+                       k = optimal_k, target = "income")
+})
+
+knn_rmse <- sapply(1:100, function(x){
+    Metrics::rmse(knn_preds[[x]], amostras[[x]]$test$income)
+})
+
+mean(knn_rmse)
+```
+
+\newpage
+
+### Comparação gráfica das métricas dos 3 modelos
+
+```{r, echo = FALSE}
+data.frame(REQM = c(lm_RMSE, knn_rmse, elastic_net_rmse),
+           Modelo = rep(c("Regressão Linear", "KNN", "Elastic Net"), each = 100)) %>% 
+    ggplot(aes(x = Modelo, y = REQM))+
+    geom_boxplot(fill = "grey75")+
+    labs(title = "REQM",
+         x = "Modelo",
+         y = "REQM")+
+    theme_bw()+
+    theme(legend.position = "none")
+```
+
+Podemos ver que, para esta base de dados, o modelo que resulta nos menores valores da Raíz do Erro Quadrático Médio é o ajuste via Regressão Linear Múltipla, seguido do ajuste via elastic net. O algoritmo KNN resultou na pior performance preditiva entre as metodologias avaliadas.
